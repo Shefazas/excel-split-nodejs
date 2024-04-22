@@ -1,0 +1,82 @@
+
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+
+const express = require('express');
+const path = require('path');
+
+const app = express();
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+
+// Function to filter rows based on employee IDs
+function filterRowsByEmpId(worksheet, empIdList) {
+    return worksheet.filter(row => empIdList.includes(row.empId));
+}
+
+// Function to write filtered rows to a new Excel file
+async function writeToExcel(filteredRows, fileName) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sheet1');
+
+    // Add headers
+    worksheet.columns = [
+        { header: 'EmpId', key: 'empId' },
+        // Add other columns here as needed
+    ];
+
+    // Add filtered rows
+    filteredRows.forEach(row => {
+        worksheet.addRow(row);
+    });
+
+    // Save to file
+    // await workbook.xlsx.writeFile(fileName);
+    const timestamp = Date.now();
+    const formattedFileName = `${timestamp}-${fileName}`;
+    
+    await workbook.xlsx.writeFile(path.join(__dirname, '../uploads', formattedFileName));
+
+}
+
+// Read the Excel file
+async function splitExcelFile(inputFilePath, projectAIds, projectBIds) {
+    console.log(inputFilePath, 'inputFilePath');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(inputFilePath);
+
+    const worksheet = workbook.getWorksheet(1);
+
+    // Convert worksheet to JSON
+    const rows = [];
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber !== 1) { // Skip header row
+            rows.push({
+                empId: row.getCell('A').value // Assuming EmpId is in column A, adjust accordingly
+                // Add other columns here as needed
+            });
+        }
+    });
+
+    // Filter rows for project A and project B
+    const projectARows = filterRowsByEmpId(rows, projectAIds);
+    const projectBRows = filterRowsByEmpId(rows, projectBIds);
+
+    // Write filtered rows to separate Excel files
+    await writeToExcel(projectARows, 'ProjectA.xlsx');
+    await writeToExcel(projectBRows, 'ProjectB.xlsx');
+
+    return {
+        success: true,
+        message: 'Excel files generated successfully.',
+        projectAFile: 'ProjectA.xlsx',
+        projectBFile: 'ProjectB.xlsx'
+    };
+}
+
+
+
+module.exports = {
+    splitExcelFile
+};
